@@ -1,8 +1,8 @@
 # 三国大时代4·协作测试版下载
 
-**[下载最新安卓 APK](https://github.com/shulaiyun/sanguo4-downloads/releases/download/preview-1050002-40448694675-1/sanguo4-preview.apk)** · [查看这一版说明及校验文件](https://github.com/shulaiyun/sanguo4-downloads/releases/tag/preview-1050002-40448694675-1) · [历史版本](https://github.com/shulaiyun/sanguo4-downloads/releases)
+**[下载最新安卓 APK](https://github.com/shulaiyun/sanguo4-downloads/releases/download/preview-1050003-40449765420-1/sanguo4-preview.apk)** · [查看这一版说明及校验文件](https://github.com/shulaiyun/sanguo4-downloads/releases/tag/preview-1050003-40449765420-1) · [历史版本](https://github.com/shulaiyun/sanguo4-downloads/releases)
 
-当前版本：**0.1.5-cloud.2**，版本号 1050002。
+当前版本：**0.1.5-cloud.3**，版本号 1050003。
 
 无需 GitHub 账号即可下载。请在安卓系统中确认安装；本下载仓库只提供测试包、说明和校验信息，游戏开发源码保持私有。
 
