@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "apk": "sanguo4-preview.apk",
+  "apk_sha256": "f0de6ed938c0aec6f365b5c4799963313c3885f0e8dadf3010dd3718e2586d8e",
+  "bytes": 41758004,
+  "package": "local.sanguo4.expedition.preview",
+  "version": "0.1.5-cloud.2",
+  "version_code": 1050002,
+  "build_id": "40448694675-1",
+  "source_commit": "1499fc7217bb897465709f7d458132a46bc4b6db",
+  "signer_sha256": "c60a7c25e556025cc7deaded4777ccc993b795b54566d4fbbb4e1d23b23dc924",
+  "original_assets_and_libraries": 1388,
+  "diagnostics": false,
+  "validation_scope": "Cloud compile/signature/DEX/assets checks; physical gameplay not verified",
+  "release_url": "https://github.com/shulaiyun/sanguo4-downloads/releases/tag/preview-1050002-40448694675-1",
+  "download_url": "https://github.com/shulaiyun/sanguo4-downloads/releases/download/preview-1050002-40448694675-1/sanguo4-preview.apk"
+}
