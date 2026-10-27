@@ -35,6 +35,8 @@ def validate_payload(directory):
         raise ValueError('Invalid version code')
     if metadata.get('original_assets_and_libraries') != 1388:
         raise ValueError('Original resource validation absent')
+    if not re.fullmatch(r'[a-f0-9]{64}',str(metadata.get('signer_sha256',''))):
+        raise ValueError('Verified certificate fingerprint absent')
     if not re.fullmatch(r'[a-f0-9]{40}', str(metadata.get('source_commit', ''))):
         raise ValueError('Invalid source revision')
     apk = directory / APK_NAME
