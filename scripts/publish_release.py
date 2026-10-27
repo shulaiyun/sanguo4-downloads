@@ -10,7 +10,8 @@ import json
 import os
 import re
 import subprocess
-import urllib.error
+import urllib.parse
+import urllib.request
 import zipfile
 
 REPOSITORY = 'shulaiyun/sanguo4-downloads'
@@ -60,13 +61,69 @@ def run(*args, capture=False):
     return subprocess.run(list(args), check=True, text=True, capture_output=capture)
 
 
-def api(path, method='GET'):
-    result = subprocess.run(['gh', 'api', '--method', method, path], text=True, capture_output=True)
+def api(path, method='GET', body=None):
+    command=['gh','api','--method',method,path]
+    if body is not None:command+=['--input','-']
+    result = subprocess.run(command,input=json.dumps(body) if body is not None else None,text=True,capture_output=True)
     if result.returncode:
-        if 'HTTP 404' in result.stderr:
+        if method in ('GET','DELETE') and 'HTTP 404' in result.stderr:
             return None
         raise RuntimeError('GitHub API operation failed: ' + path + ': ' + result.stderr)
     return json.loads(result.stdout) if result.stdout.strip() else {}
+
+
+def find_release(tag):
+    # Draft releases may not have a Git tag yet, so /releases/tags/:tag can 404.
+    published=api('repos/'+REPOSITORY+'/releases/tags/'+tag)
+    if published is not None:return published
+    releases=api('repos/'+REPOSITORY+'/releases?per_page=100') or []
+    matches=[release for release in releases if release.get('tag_name')==tag]
+    if len(matches)>1:raise ValueError('Ambiguous draft releases for this build')
+    return matches[0] if matches else None
+
+
+def upload_asset(release, path):
+    path=Path(path)
+    base=release['upload_url'].split('{',1)[0]
+    expected='https://uploads.github.com/repos/'+REPOSITORY+'/releases/'+str(release['id'])+'/assets'
+    if base!=expected or path.name not in NAMES-{'RELEASE_NOTES.md'}:
+        raise ValueError('Unexpected release upload destination')
+    request=urllib.request.Request(base+'?name='+urllib.parse.quote(path.name),data=path.read_bytes(),method='POST',headers={
+        'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json',
+        'X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/octet-stream'})
+    with urllib.request.urlopen(request,timeout=180) as response:
+        return json.load(response)
+
+
+def ensure_release(payload, metadata):
+    payload=Path(payload)
+    tag = 'preview-' + str(metadata['version_code']) + '-' + metadata['build_id']
+    release=find_release(tag)
+    if release is None:
+        release=api('repos/'+REPOSITORY+'/releases',method='POST',body={
+            'tag_name':tag,'target_commitish':'main','draft':True,'prerelease':True,
+            'name':'三国大时代4·协作测试 '+metadata['version'],'body':(payload/'RELEASE_NOTES.md').read_text()})
+    release_path='repos/'+REPOSITORY+'/releases/'+str(release['id'])
+    if release['draft']:
+        existing={a['name']:a for a in release['assets']}
+        for name in sorted(NAMES-{'RELEASE_NOTES.md'}):
+            digest='sha256:'+hashlib.sha256((payload/name).read_bytes()).hexdigest()
+            asset=existing.get(name)
+            if asset and asset.get('digest')==digest and asset['size']==(payload/name).stat().st_size:continue
+            if asset:api('repos/'+REPOSITORY+'/releases/assets/'+str(asset['id']),method='DELETE')
+            upload_asset(release,payload/name)
+        release = api(release_path)
+        assets = {a['name']: a for a in release['assets']}
+        if set(assets) != NAMES - {'RELEASE_NOTES.md'}:
+            raise ValueError('Release assets incomplete')
+        if assets[APK_NAME].get('digest') not in (None, 'sha256:' + metadata['apk_sha256']):
+            raise ValueError('Uploaded release digest mismatch')
+        release=api(release_path,method='PATCH',body={'draft':False,'prerelease':True})
+    else:
+        assets = {a['name']: a for a in release['assets']}
+        if set(assets) != NAMES - {'RELEASE_NOTES.md'} or assets[APK_NAME].get('digest') != 'sha256:' + metadata['apk_sha256']:
+            raise ValueError('Existing public release conflicts with this build')
+    return tag,release
 
 
 def main():
@@ -79,28 +136,7 @@ def main():
     metadata = validate_payload(payload)
     if branch != 'incoming/build-' + metadata['build_id']:
         raise ValueError('Branch/build ID mismatch')
-    tag = 'preview-' + str(metadata['version_code']) + '-' + metadata['build_id']
-    release_path = 'repos/' + REPOSITORY + '/releases/tags/' + tag
-    release = api(release_path)
-    if release is None:
-        run('gh', 'release', 'create', tag, '--repo', REPOSITORY, '--target', 'main',
-            '--draft', '--prerelease', '--title', '三国大时代4·协作测试 ' + metadata['version'],
-            '--notes-file', str(payload / 'RELEASE_NOTES.md'))
-        release = api(release_path)
-    if release['draft']:
-        run('gh', 'release', 'upload', tag, '--repo', REPOSITORY, '--clobber',
-            *[str(payload / name) for name in sorted(NAMES - {'RELEASE_NOTES.md'})])
-        release = api(release_path)
-        assets = {a['name']: a for a in release['assets']}
-        if set(assets) != NAMES - {'RELEASE_NOTES.md'}:
-            raise ValueError('Release assets incomplete')
-        if assets[APK_NAME].get('digest') not in (None, 'sha256:' + metadata['apk_sha256']):
-            raise ValueError('Uploaded release digest mismatch')
-        run('gh', 'release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--prerelease=true')
-    else:
-        assets = {a['name']: a for a in release['assets']}
-        if set(assets) != NAMES - {'RELEASE_NOTES.md'} or assets[APK_NAME].get('digest') != 'sha256:' + metadata['apk_sha256']:
-            raise ValueError('Existing public release conflicts with this build')
+    tag,release=ensure_release(payload,metadata)
     release_url = 'https://github.com/' + REPOSITORY + '/releases/tag/' + tag
     download_url = 'https://github.com/' + REPOSITORY + '/releases/download/' + tag + '/' + APK_NAME
     # Refresh main before updating the small index. APK blobs never enter main.
